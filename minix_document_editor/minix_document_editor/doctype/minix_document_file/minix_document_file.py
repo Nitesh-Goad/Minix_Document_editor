@@ -4,6 +4,7 @@ import frappe
 import docx
 import fitz
 import textract
+import difflib
 from frappe.model.document import Document
 from frappe.utils.file_manager import save_file
 from pdfminer.high_level import extract_text
@@ -11,11 +12,9 @@ from pdfminer.high_level import extract_text
 
 class MinixDocumentFile(Document):
     def before_save(self):
-        if self.upload_word_file and not self.rich_text_content:
+        if self.upload_word_file:
             try:
                 content = extract_text_from_file(self.upload_word_file)
-                self.rich_text_content = content
-
                 file_path = resolve_file_path(self.upload_word_file)
                 ext = os.path.splitext(file_path)[1].lower()
                 images = []
@@ -24,7 +23,16 @@ class MinixDocumentFile(Document):
                     images = extract_images_from_docx(file_path, self.name)
                 elif ext == ".pdf":
                     images = extract_images_from_pdf(file_path, self.name)
-
+                
+                if not self.original_content:
+                    self.original_content = content
+                
+                if not self.rich_text_content:
+                    self.rich_text_content = content
+                    
+                if self.rich_text_content and self.original_content:
+                    self.diff_output_html = get_diff_highlighted_html(self.original_content, self.rich_text_content)
+                    
                 self.attached_images = []
                 for img in images:
                     self.append("attached_images", {
@@ -103,6 +111,55 @@ def extract_images_from_docx(docx_path, docname):
         frappe.throw(f"Error extracting images from DOCX: {e}")   
     return images
 
+# def extract_images_from_docx(docx_path, docname):
+#     from frappe.utils.file_manager import remove_file
+#     images = []
+#     new_file_urls = set()
+
+#     try:
+#         with zipfile.ZipFile(docx_path, 'r') as docx:
+#             for file in docx.namelist():
+#                 if file.startswith('word/media/') and file.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+#                     image_data = docx.read(file)
+#                     filename = file.split('/')[-1]
+
+#                     file_doc = save_file(
+#                         filename, image_data,
+#                         "Minix Document File", docname,
+#                         is_private=False
+#                     )
+#                     new_file_urls.add(file_doc.file_url)
+#                     images.append({'upload_image': file_doc.file_url})
+
+#         doc = frappe.get_doc("Minix Document File", docname)
+#         existing_file_urls = {img.upload_image for img in doc.attached_images}
+
+#         removed_urls = existing_file_urls - new_file_urls
+#         added_urls = new_file_urls - existing_file_urls
+
+#         # Keep only images still in the DOCX
+#         doc.attached_images = [
+#             img for img in doc.attached_images if img.upload_image in new_file_urls
+#         ]
+
+#         # Optionally remove files from File table
+#         for file_url in removed_urls:
+#             try:
+#                 remove_file(file_url)
+#             except Exception:
+#                 frappe.log_error(f"Failed to remove file: {file_url}")
+
+#         # Add new image attachments
+#         for img_url in added_urls:
+#             doc.append("attached_images", {"upload_image": img_url})
+
+#         doc.save()
+
+#     except Exception as e:
+#         frappe.throw(f"Error extracting images from DOCX: {e}")
+
+#     return images
+
 
 def extract_images_from_pdf(pdf_path, docname):
     images = []
@@ -121,3 +178,17 @@ def extract_images_from_pdf(pdf_path, docname):
     except Exception as e:
         frappe.throw(f"Error extracting images from PDF file: {e}")
     return images
+
+
+def get_diff_highlighted_html(original, modified):
+    differ = difflib.Differ()
+    diff = list(differ.compare(original.split(), modified.split()))
+    html_output = []
+    for word in diff:
+        if word.startswith('+ '):
+            html_output.append(f"<span style='background-color: #d4f8d4;'>{word[2:]}</span>")
+        elif word.startswith('- '):
+            html_output.append(f"<span style='background-color: #fdd; text-decoration: line-through;'>{word[2:]}</span>")
+        elif word.startswith('  '):
+            html_output.append(word[2:])
+    return ' '.join(html_output)

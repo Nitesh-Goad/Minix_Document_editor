@@ -10,7 +10,9 @@
   "amended_from",
   "upload_word_file",
   "rich_text_content",
-  "attached_images"
+  "attached_images",
+  "original_content",
+  "diff_output_html"
  ],
  "fields": [
   {
@@ -42,13 +44,25 @@
    "fieldtype": "Table",
    "label": "Attached Images",
    "options": "Image Attachment"
+  },
+  {
+   "fieldname": "original_content",
+   "fieldtype": "Long Text",
+   "label": "Original Content",
+   "read_only": 1
+  },
+  {
+   "fieldname": "diff_output_html",
+   "fieldtype": "Small Text",
+   "label": "Diff Preview",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2025-11-03 10:11:54.325769",
+ "modified": "2025-11-04 09:54:02.191193",
  "modified_by": "Administrator",
  "module": "Minix Document Editor",
  "name": "Minix Document File",
